@@ -1,0 +1,28 @@
+{
+  "name": "@tropical-snow/web",
+  "version": "0.0.1",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@tropical-snow/ai": "workspace:*",
+    "@tropical-snow/api-client": "workspace:*",
+    "@tropical-snow/design-tokens": "workspace:*",
+    "@tropical-snow/ordering-logic": "workspace:*",
+    "@tropical-snow/schema": "workspace:*",
+    "next": "^15.0.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "typescript": "^5.0.0"
+  }
+}

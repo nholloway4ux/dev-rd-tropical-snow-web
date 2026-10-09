@@ -4,7 +4,7 @@ Tropical Snow / Seafood & Grill is an Atlanta mobile food vendor (Hawaiian-style
 
 Source documents (read before building anything):
 - @docs/requirements.md (Digital Experience Requirements v1.0, FR-x and AI-x IDs, MoSCoW priorities)
-- @docs/architecture.md (architecture overview: shared vs channel-specific features, AWS services, hosting)
+- @docs/architecture.md (architecture overview: shared vs channel-specific features, services, hosting)
 
 If this file and the requirements doc conflict, stop and ask. Do not guess.
 
@@ -20,21 +20,21 @@ One shared backend, one API contract, three front ends. Data and business logic 
 
 Customers can order on the website OR the app. Both must reach feature parity on the core flow: menu, customize, pay, pickup, status.
 
-## Stack (AWS)
+## Stack
 
-- **Website hosting:** AWS Amplify Hosting (managed Next.js SSR; sets up CloudFront and S3). Back office uses the same hosting.
-- **API:** AWS AppSync (GraphQL) + Lambda. API Gateway only for webhooks (Square).
-- **Auth:** Amazon Cognito (email, phone OTP, Apple, Google, guest checkout). Cognito groups for owner vs. staff roles.
-- **Data:** DynamoDB (orders, menu, events, loyalty mirror). S3 + Athena for reporting.
+- **Website hosting:** Vercel (managed Next.js SSR; Edge Network CDN; Git-integrated deploys; preview URL per pull request). Back office uses the same Vercel project.
+- **API:** Supabase (PostgREST auto-generated REST API + Realtime subscriptions for live order status). Supabase Edge Functions for business logic. Vercel API routes for Square webhooks.
+- **Auth:** Supabase Auth (email, phone OTP, Apple, Google, anonymous guest sessions). Row Level Security (RLS) policies for owner vs. staff roles — no separate auth service needed.
+- **Data:** Supabase Postgres (orders, menu, events, loyalty mirror). Supabase Realtime for the live kitchen queue. Supabase Storage for media uploads.
 - **Payments:** Square (Web Payments SDK on web, In-App Payments SDK in app, Apple Pay and Google Pay, Gift Cards and Loyalty APIs). Card data is tokenized and never stored by us.
-- **Messaging:** SNS (push to APNs/FCM), SES (email), AWS End User Messaging (SMS). Do NOT use Amazon Pinpoint; AWS ends support for it on October 30, 2026.
-- **Maps and geo:** Amazon Location Service (Mapbox is an acceptable swap).
-- **Media:** S3 + CloudFront, MediaConvert for video.
-- **AI:** Amazon Bedrock (Claude via tool use for the ordering assistant), Guardrails, Knowledge Bases for FAQs.
-- **CMS:** headless CMS for editorial content (Sanity recommended; Payload on AWS if everything must stay in AWS). It sits behind the shared API client so it can be swapped.
-- **Infrastructure as code:** SST (or CDK) for the backend. Amplify Hosting handles the website deploy separately.
+- **Messaging:** Resend (transactional email and receipts); Expo Push + FCM/APNs via Expo's notification service (push); Twilio (SMS order alerts and campaigns).
+- **Maps and geo:** Mapbox (live event locations, directions, geofencing for geo-alerts).
+- **Media:** Supabase Storage + Vercel CDN for images; Mux or Cloudflare Stream for video (hero loop, brand story).
+- **AI:** Anthropic API directly (Claude for conversational ordering, recommendations, support bot). Called from Supabase Edge Functions; guardrails enforced in code.
+- **CMS:** Sanity (headless CMS for editorial content). Sits behind the shared API client so it can be swapped.
+- **Infrastructure:** Supabase CLI (database migrations and local dev); Vercel CLI (deploys). No separate IaC tool needed for Phase 1–3.
 - **CI/CD:** GitHub Actions; EAS for mobile builds and over-the-air updates.
-- **Observability:** CloudWatch, Sentry, PostHog.
+- **Observability:** Sentry, PostHog.
 
 ## Monorepo layout (pnpm + Turborepo, TypeScript everywhere)
 
@@ -48,7 +48,7 @@ packages/
   design-tokens/    Navy, ice-cyan, coral palette, spacing, type
   ordering-logic/   Cart math, tax, customization rules, ready-time display
   ai/               Assistant tool definitions and prompts
-infra/          SST/CDK stacks (auth, api, data, messaging, media)
+infra/          Supabase migrations and Vercel config
 docs/           requirements.md, architecture.md
 ```
 
@@ -62,14 +62,14 @@ Rules:
 | Kind | Examples | Lives in |
 | --- | --- | --- |
 | Editorial content | Hero video, brand story, banners, FAQs, home layout | Headless CMS |
-| Catalog and events | Menu items, prices, customization options, event schedule | DynamoDB (option logic), synced to Square for payment; CMS for photos and copy |
-| Live operational state | Sold-out toggles, order queue, wait times | DynamoDB + AppSync only, NEVER the CMS |
+| Catalog and events | Menu items, prices, customization options, event schedule | Supabase Postgres (option logic), synced to Square for payment; CMS for photos and copy |
+| Live operational state | Sold-out toggles, order queue, wait times | Supabase Postgres + Realtime only, NEVER the CMS |
 
 Content types carry a `channel` field (web, app, both) and start/end dates. Screens are composed from a fixed set of blocks (hero, banner, carousel, featured item, event card, promo strip) that web and app each render natively.
 
 ## Order flow (must be identical for web and app)
 
-Client -> shared API -> Square payment -> order record in DynamoDB -> DynamoDB Streams -> AppSync subscription -> kitchen display -> staff marks ready -> order alerts (push, SMS or email) back to the customer.
+Client -> Supabase Edge Function -> Square payment -> order record in Supabase Postgres -> Supabase Realtime -> kitchen display -> staff marks ready -> order alerts (Expo Push, Twilio SMS, Resend email) back to the customer.
 
 ## Non-negotiable engineering rules
 
@@ -79,12 +79,12 @@ Client -> shared API -> Square payment -> order record in DynamoDB -> DynamoDB S
 - **Security:** PCI-DSS via Square tokenization; TLS in transit, encryption at rest; role-based access in the back office; audit logging for admin actions.
 - **Accessibility:** WCAG 2.2 AA on web and app, captions on video.
 - **Performance:** mobile LCP under 2.5s on 4G; app cold start under 3s; lazy-load and CDN-serve all media.
-- **Secrets:** never commit keys. Use AWS Secrets Manager / SSM Parameter Store; local values in `.env.local` (gitignored).
+- **Secrets:** never commit keys. Use Vercel environment variables and Supabase secrets for deployed environments; local values in `.env.local` (gitignored).
 - Do not touch Square production credentials. Use the Square sandbox until told otherwise.
 
 ## Build order (follow the phases; do not jump ahead)
 
-1. **Foundation (start here):** monorepo scaffold, shared packages, Cognito auth, API and schema, DynamoDB tables, website shell with design tokens, live menu and events, CMS wiring, back-office basics.
+1. **Foundation (start here):** monorepo scaffold, shared packages, Supabase Auth, API and schema, Supabase Postgres tables, website shell with design tokens, live menu and events, CMS wiring, back-office basics.
 2. **Order and Pay:** cart, customization, Square payments, pickup scheduling, order status, kitchen queue, loyalty v1. Web ordering ships first.
 3. **Native apps:** Expo app consuming the existing API and packages; push, wallet, re-order, geo-alerts.
 4. **AI and advanced:** conversational ordering, recommendations, support bot, wait-time prediction (start as a queue-length heuristic), AR preview, Spanish.

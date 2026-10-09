@@ -1,0 +1,10 @@
+{
+  "expo": {
+    "name": "Tropical Snow",
+    "slug": "tropical-snow",
+    "scheme": "tropicalsnow",
+    "version": "1.0.0",
+    "platforms": ["ios", "android"],
+    "plugins": ["expo-router"]
+  }
+}
