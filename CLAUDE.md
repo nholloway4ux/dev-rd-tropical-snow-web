@@ -5,6 +5,7 @@ Tropical Snow / Seafood & Grill is an Atlanta mobile food vendor (Hawaiian-style
 Source documents (read before building anything):
 - @docs/requirements.md (Digital Experience Requirements v1.0, FR-x and AI-x IDs, MoSCoW priorities)
 - @docs/architecture.md (architecture overview: shared vs channel-specific features, services, hosting)
+- @docs/design.md (brand palette, type rules, 15 AI design anti-patterns, spacing checklist — read before writing any UI)
 
 If this file and the requirements doc conflict, stop and ask. Do not guess.
 
@@ -78,6 +79,7 @@ Client -> Supabase Edge Function -> Square payment -> order record in Supabase P
 - **Graceful degradation:** if the AI service is down, ordering must still work.
 - **Security:** PCI-DSS via Square tokenization; TLS in transit, encryption at rest; role-based access in the back office; audit logging for admin actions.
 - **Accessibility:** WCAG 2.2 AA on web and app, captions on video.
+- **Design hygiene:** before merging any UI, check `docs/design.md`. Eliminate all 15 AI design anti-patterns. Run `npx impeccable detect` and fix every finding.
 - **Performance:** mobile LCP under 2.5s on 4G; app cold start under 3s; lazy-load and CDN-serve all media.
 - **Secrets:** never commit keys. Use Vercel environment variables and Supabase secrets for deployed environments; local values in `.env.local` (gitignored).
 - Do not touch Square production credentials. Use the Square sandbox until told otherwise.
